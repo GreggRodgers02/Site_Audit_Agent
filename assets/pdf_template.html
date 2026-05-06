@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<!--
+  pdf_template.html
+  -----------------
+  Jinja2 + WeasyPrint template — Sherwin-Williams PCG Site Assessment Reports.
+
+  Brand spec (SW Employer Brand Guidelines, March 2025):
+    SW Blue:    #003DA5  (PMS 293)
+    SW Red:     #F5333F  (PMS 032)
+    Body text:  #2C2C2C
+    Background: #F2F2F2
+
+  Sections:
+    Cover Page
+    1. Executive Summary
+    2. Existing Conditions and Observed Distress
+    3. Photo Log and Image-Based Observations  (2-col grid)
+    4. Observed Failure Analysis
+    5. Surface Preparation Requirements
+    6. Proposed Recommended Coating System
+    7. Installation Notes and Precautions
+    8. Conclusion
+    9. Technical Reference Basis
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SW Site Assessment — {{ facility_name }}</title>
+
+  <style>
+    /* ================================================================
+       GLOBAL RESET & BASE
+       ================================================================ */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+      color: #2C2C2C;
+      line-height: 1.55;
+      background: #ffffff;
+    }
+
+    /* ================================================================
+       PAGE SETUP
+       ================================================================ */
+    @page {
+      size: letter;
+      margin-top: 1.3in;
+      margin-bottom: 0.9in;
+      margin-left: 0.85in;
+      margin-right: 0.85in;
+
+      @top-left {
+        content: element(running-header);
+        vertical-align: bottom;
+      }
+
+      @bottom-left {
+        content: "Prepared by {{ apm_name }}";
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 8pt;
+        color: #2C2C2C;
+        vertical-align: top;
+        padding-top: 6pt;
+        border-top: 1pt solid #003DA5;
+        width: 100%;
+      }
+
+      @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 8pt;
+        color: #2C2C2C;
+        vertical-align: top;
+        padding-top: 6pt;
+      }
+    }
+
+    @page cover-page {
+      size: letter;
+      margin-top: 0.75in;
+      margin-bottom: 0.9in;
+      margin-left: 0.85in;
+      margin-right: 0.85in;
+
+      @top-left { content: ""; }
+
+      @bottom-left {
+        content: "Prepared by {{ apm_name }}";
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 8pt;
+        color: rgba(255,255,255,0.8);
+        vertical-align: top;
+        padding-top: 6pt;
+        border-top: 1pt solid rgba(255,255,255,0.4);
+        width: 100%;
+      }
+
+      @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 8pt;
+        color: rgba(255,255,255,0.8);
+        vertical-align: top;
+        padding-top: 6pt;
+      }
+    }
+
+    /* ================================================================
+       RUNNING HEADER
+       ================================================================ */
+    #running-header {
+      position: running(running-header);
+      width: 100%;
+      padding-bottom: 6pt;
+      border-bottom: 1.5pt solid #003DA5;
+      display: table;
+      table-layout: fixed;
+    }
+
+    #running-header .rh-logo-cell {
+      display: table-cell;
+      width: 80pt;
+      vertical-align: middle;
+    }
+
+    #running-header .rh-logo-cell img {
+      height: 26pt;
+      width: auto;
+    }
+
+    #running-header .rh-title-cell {
+      display: table-cell;
+      vertical-align: middle;
+      text-align: right;
+      font-size: 8.5pt;
+      color: #2C2C2C;
+      padding-left: 8pt;
+    }
+
+    /* ================================================================
+       COVER PAGE
+       ================================================================ */
+    .cover-page {
+      page: cover-page;
+      page-break-after: always;
+      background-color: #003DA5;
+      color: #ffffff;
+      margin: -0.75in -0.85in;
+      padding: 0.75in 0.85in;
+      min-height: 9.5in;
+    }
+
+    .cover-logo { margin-bottom: 0.5in; }
+
+    .cover-logo img {
+      height: 65pt;
+      width: auto;
+      filter: brightness(0) invert(1);
+    }
+
+    .cover-accent-bar {
+      width: 60pt;
+      height: 4pt;
+      background-color: #F5333F;
+      margin-bottom: 22pt;
+    }
+
+    .cover-title {
+      font-size: 28pt;
+      font-weight: bold;
+      color: #ffffff;
+      line-height: 1.2;
+      margin-bottom: 6pt;
+    }
+
+    .cover-subtitle {
+      font-size: 12pt;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 30pt;
+    }
+
+    .cover-meta-box {
+      border: 1pt solid rgba(255,255,255,0.3);
+      border-radius: 3pt;
+      padding: 16pt 18pt;
+      margin-bottom: 0.4in;
+    }
+
+    .cover-meta-row {
+      border-bottom: 0.5pt solid rgba(255,255,255,0.15);
+      padding: 8pt 0;
+    }
+
+    .cover-meta-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .cover-meta-row .meta-label {
+      font-size: 8.5pt;
+      color: rgba(255,255,255,0.65);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 2pt;
+    }
+
+    .cover-meta-row .meta-value {
+      font-size: 10.5pt;
+      color: #ffffff;
+    }
+
+    .cover-prepared-by {
+      margin-top: 20pt;
+      font-size: 9pt;
+      color: rgba(255,255,255,0.75);
+      line-height: 1.6;
+    }
+
+    .cover-prepared-by strong {
+      color: #ffffff;
+      display: block;
+      font-size: 10pt;
+      margin-bottom: 2pt;
+    }
+
+    .cover-confidential {
+      margin-top: 28pt;
+      font-size: 8pt;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* ================================================================
+       SECTION HEADINGS
+       ================================================================ */
+    .section-heading {
+      font-size: 15pt;
+      font-weight: bold;
+      color: #003DA5;
+      margin-top: 18pt;
+      margin-bottom: 10pt;
+      padding-bottom: 4pt;
+      border-bottom: 1.5pt solid #003DA5;
+      page-break-after: avoid;
+    }
+
+    .section-subheading {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #2C2C2C;
+      margin-top: 12pt;
+      margin-bottom: 6pt;
+      page-break-after: avoid;
+    }
+
+    /* ================================================================
+       BODY TEXT
+       ================================================================ */
+    p { margin-bottom: 8pt; }
+
+    ul {
+      margin-left: 16pt;
+      margin-bottom: 8pt;
+    }
+
+    li { margin-bottom: 4pt; }
+
+    /* ================================================================
+       CALLOUT BOXES
+       ================================================================ */
+    .callout-box {
+      background-color: #F5F7FA;
+      border-left: 3pt solid #003DA5;
+      padding: 10pt 14pt;
+      margin: 10pt 0 14pt 0;
+      font-size: 9.5pt;
+      color: #2C2C2C;
+      line-height: 1.5;
+    }
+
+    /* ================================================================
+       SECTION 1: EXECUTIVE SUMMARY
+       ================================================================ */
+    .executive-summary { margin-bottom: 14pt; }
+
+    /* ================================================================
+       SECTION 2: EXISTING CONDITIONS TABLE
+       ================================================================ */
+    .conditions-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10pt;
+      page-break-inside: auto;
+    }
+
+    .conditions-table th {
+      background-color: #003DA5;
+      color: #ffffff;
+      font-size: 9pt;
+      font-weight: bold;
+      text-align: left;
+      padding: 7pt 10pt;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .conditions-table td {
+      padding: 7pt 10pt;
+      vertical-align: top;
+      font-size: 9.5pt;
+      border-bottom: 0.5pt solid #EBEBEB;
+    }
+
+    .conditions-table tr:nth-child(even) td {
+      background-color: #F9F9F9;
+    }
+
+    .conditions-table td.condition-col {
+      width: 38%;
+      font-weight: bold;
+      color: #2C2C2C;
+    }
+
+    .conditions-table td.note-col {
+      width: 62%;
+      color: #444444;
+    }
+
+    .failure-drivers-note {
+      font-size: 9.5pt;
+      color: #2C2C2C;
+      margin-top: 10pt;
+      margin-bottom: 14pt;
+      font-style: italic;
+    }
+
+    /* ================================================================
+       SECTION 3: PHOTO LOG — 2-column grid
+       ================================================================ */
+    .photo-grid-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 10pt 10pt;
+      margin-bottom: 8pt;
+    }
+
+    .photo-grid-table td.photo-cell {
+      width: 50%;
+      vertical-align: top;
+      padding: 0;
+    }
+
+    .photo-item {
+      page-break-inside: avoid;
+    }
+
+    .photo-item img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .photo-item .photo-label {
+      font-size: 8pt;
+      font-weight: bold;
+      color: #003DA5;
+      margin-top: 5pt;
+      margin-bottom: 3pt;
+    }
+
+    .photo-item .photo-caption {
+      font-size: 8.5pt;
+      color: #444444;
+      line-height: 1.4;
+    }
+
+    .photo-item .photo-unavailable {
+      background-color: #EEEEEE;
+      border: 1pt dashed #BBBBBB;
+      text-align: center;
+      padding: 30pt 10pt;
+      font-size: 8.5pt;
+      color: #888888;
+      font-style: italic;
+    }
+
+    /* ================================================================
+       SECTION 4: FAILURE ANALYSIS — bullets
+       ================================================================ */
+    .failure-analysis {
+      margin-bottom: 14pt;
+    }
+
+    .failure-analysis ul {
+      margin-left: 14pt;
+    }
+
+    .failure-analysis li {
+      margin-bottom: 5pt;
+      font-size: 9.5pt;
+    }
+
+    /* ================================================================
+       SECTION 5: SURFACE PREPARATION
+       ================================================================ */
+    .surface-prep { margin-bottom: 14pt; }
+
+    /* ================================================================
+       SECTION 6: RECOMMENDED COATING SYSTEM
+       ================================================================ */
+    .system-highlight-box {
+      background-color: #F0F4FA;
+      border: 1pt solid #C0CFEB;
+      border-radius: 3pt;
+      padding: 10pt 14pt;
+      margin-bottom: 14pt;
+      font-size: 10pt;
+      font-weight: bold;
+      color: #003DA5;
+    }
+
+    .coating-description {
+      font-size: 9.5pt;
+      color: #2C2C2C;
+      margin-bottom: 12pt;
+      white-space: pre-wrap;
+    }
+
+    .coat-sequence-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10pt;
+    }
+
+    .coat-sequence-table th {
+      background-color: #003DA5;
+      color: #ffffff;
+      font-size: 9pt;
+      font-weight: bold;
+      text-align: left;
+      padding: 7pt 10pt;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .coat-sequence-table td {
+      padding: 8pt 10pt;
+      vertical-align: top;
+      font-size: 9.5pt;
+      border-bottom: 0.5pt solid #EBEBEB;
+    }
+
+    .coat-sequence-table tr:nth-child(even) td {
+      background-color: #F9F9F9;
+    }
+
+    .coat-sequence-table td.coat-col {
+      width: 18%;
+      font-weight: bold;
+      color: #2C2C2C;
+    }
+
+    .coat-sequence-table td.product-col { width: 46%; }
+
+    .coat-sequence-table td.reason-col {
+      width: 36%;
+      font-style: italic;
+      color: #555555;
+    }
+
+    .perf-notes-block {
+      font-size: 9.5pt;
+      color: #2C2C2C;
+      margin-top: 10pt;
+      margin-bottom: 14pt;
+    }
+
+    /* ================================================================
+       SECTION 7: INSTALLATION NOTES
+       ================================================================ */
+    .installation-notes { margin-bottom: 14pt; }
+
+    .installation-notes ul { margin-left: 14pt; }
+
+    .installation-notes li {
+      font-size: 9.5pt;
+      margin-bottom: 5pt;
+    }
+
+    /* ================================================================
+       SECTION 8: CONCLUSION
+       ================================================================ */
+    .conclusion-section { margin-bottom: 14pt; }
+
+    /* ================================================================
+       SECTION 9: TECHNICAL REFERENCES
+       ================================================================ */
+    .tech-refs ul { margin-left: 14pt; }
+
+    .tech-refs li {
+      font-size: 9.5pt;
+      margin-bottom: 4pt;
+    }
+
+    /* ================================================================
+       UTILITY
+       ================================================================ */
+    .placeholder-text {
+      font-style: italic;
+      color: #888888;
+    }
+
+    .page-break { page-break-before: always; }
+  </style>
+</head>
+
+<body>
+
+  <!-- Running header (inner pages) -->
+  <div id="running-header">
+    <div class="rh-logo-cell">
+      {% if logo01_uri %}
+        <img src="{{ logo01_uri }}" alt="Sherwin-Williams" />
+      {% endif %}
+    </div>
+    <div class="rh-title-cell">
+      {{ facility_name }} | Site Assessment | Attention: {{ client_name }}
+    </div>
+  </div>
+
+  <!-- ================================================================
+       COVER PAGE
+       ================================================================ -->
+  <div class="cover-page">
+
+    <div class="cover-logo">
+      {% if logo02_uri %}
+        <img src="{{ logo02_uri }}" alt="Sherwin-Williams" />
+      {% endif %}
+    </div>
+
+    <div class="cover-accent-bar"></div>
+
+    <div class="cover-title">Site Assessment Report</div>
+    <div class="cover-subtitle">Performance Coatings Group — Asset Protection</div>
+
+    <div class="cover-meta-box">
+      <div class="cover-meta-row">
+        <div class="meta-label">Facility</div>
+        <div class="meta-value">{{ facility_name }}</div>
+      </div>
+      <div class="cover-meta-row">
+        <div class="meta-label">Attention</div>
+        <div class="meta-value">{{ client_name }}</div>
+      </div>
+      <div class="cover-meta-row">
+        <div class="meta-label">Recommended System</div>
+        <div class="meta-value">{{ coating_system.name }}</div>
+      </div>
+      <div class="cover-meta-row">
+        <div class="meta-label">Date</div>
+        <div class="meta-value">{{ assessment_date }}</div>
+      </div>
+      <div class="cover-meta-row">
+        <div class="meta-label">Prepared For</div>
+        <div class="meta-value">{{ client_name }}</div>
+      </div>
+      <div class="cover-meta-row">
+        <div class="meta-label">Prepared By</div>
+        <div class="meta-value">{{ apm_name }}<br />Asset Protection Manager — Performance Coatings Group</div>
+      </div>
+    </div>
+
+    <div class="cover-confidential">Confidential — Prepared for Customer Review</div>
+
+  </div><!-- /.cover-page -->
+
+
+  <!-- ================================================================
+       SECTION 1: EXECUTIVE SUMMARY
+       ================================================================ -->
+  <div class="section executive-summary">
+
+    <div class="section-heading">1. Executive Summary</div>
+
+    {% if executive_summary and executive_summary != "Not provided for this assessment." %}
+      <div>{{ executive_summary | nl2br }}</div>
+    {% else %}
+      <p class="placeholder-text">Not provided for this assessment.</p>
+    {% endif %}
+
+    {% if exec_summary_callout %}
+      <div class="callout-box">{{ exec_summary_callout | nl2br }}</div>
+    {% endif %}
+
+  </div>
+
+
+  <!-- ================================================================
+       SECTION 2: EXISTING CONDITIONS
+       ================================================================ -->
+  <div class="section">
+
+    <div class="section-heading">2. Existing Conditions and Observed Distress</div>
+
+    {% if existing_conditions %}
+      <table class="conditions-table">
+        <thead>
+          <tr>
+            <th class="condition-col">Observed Condition</th>
+            <th class="note-col">Assessment Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in existing_conditions %}
+            <tr>
+              <td class="condition-col">{{ item.condition }}</td>
+              <td class="note-col">{{ item.note }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="placeholder-text">No existing conditions recorded for this assessment.</p>
+    {% endif %}
+
+    {% if failure_drivers %}
+      <p class="failure-drivers-note"><strong>Likely failure drivers:</strong> {{ failure_drivers }}</p>
+    {% endif %}
+
+  </div>
+
+
+  <!-- ================================================================
+       SECTION 3: PHOTO LOG
+       2-column grid — photos fill left-to-right, 2 per row
+       ================================================================ -->
+  <div class="section">
+
+    <div class="section-heading">3. Photo Log and Image-Based Observations</div>
+
+    {% if photos %}
+      {% set photo_count = photos | length %}
+      {% set row_count = ((photo_count + 1) // 2) %}
+
+      {% for row_i in range(row_count) %}
+        {% set left_idx  = row_i * 2 %}
+        {% set right_idx = row_i * 2 + 1 %}
+
+        <table class="photo-grid-table">
+          <tr>
+            <!-- Left photo -->
+            <td class="photo-cell">
+              {% set p = photos[left_idx] %}
+              <div class="photo-item">
+                {% if p.data_uri %}
+                  <img src="{{ p.data_uri }}" alt="{{ p.filename }}" />
+                {% else %}
+                  <div class="photo-unavailable">Photo unavailable</div>
+                {% endif %}
+                <div class="photo-label">{{ p.filename }}</div>
+                <div class="photo-caption">{{ p.caption | nl2br }}</div>
+              </div>
+            </td>
+
+            <!-- Right photo (may not exist for an odd count) -->
+            {% if right_idx < photo_count %}
+              <td class="photo-cell">
+                {% set p = photos[right_idx] %}
+                <div class="photo-item">
+                  {% if p.data_uri %}
+                    <img src="{{ p.data_uri }}" alt="{{ p.filename }}" />
+                  {% else %}
+                    <div class="photo-unavailable">Photo unavailable</div>
+                  {% endif %}
+                  <div class="photo-label">{{ p.filename }}</div>
+                  <div class="photo-caption">{{ p.caption | nl2br }}</div>
+                </div>
+              </td>
+            {% else %}
+              <td class="photo-cell"></td>
+            {% endif %}
+          </tr>
+        </table>
+
+      {% endfor %}
+
+    {% else %}
+      <p class="placeholder-text">No photographs were submitted for this assessment.</p>
+    {% endif %}
+
+  </div>
+
+
+  <!-- ================================================================
+       SECTION 4: OBSERVED FAILURE ANALYSIS
+       ================================================================ -->
+  <div class="section failure-analysis">
+
+    <div class="section-heading">4. Observed Failure Analysis</div>
+
+    {% if failure_analysis and failure_analysis != "Not provided for this assessment." %}
+      <ul>
+        {% for line in failure_analysis.split('\n') %}
+          {% set ln = line.strip().lstrip('•').strip() %}
+          {% if ln %}
+            <li>{{ ln }}</li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="placeholder-text">Not provided for this assessment.</p>
+    {% endif %}
+
+    {% if failure_analysis_callout %}
+      <div class="callout-box">
+        <strong>Practical implication:</strong> {{ failure_analysis_callout }}
+      </div>
+    {% endif %}
+
+  </div>
+
+
+  <!-- ================================================================
+       SECTION 5: SURFACE PREPARATION REQUIREMENTS
+       ================================================================ -->
+  <div class="section surface-prep">
+
+    <div class="section-heading">5. Surface Preparation Requirements (AMPP and ICRI Basis)</div>
+
+    {% if surface_preparation and surface_preparation != "Not provided for this assessment." %}
+      <div>{{ surface_preparation | nl2br }}</div>
+    {% elif standards %}
+      <p>Concrete surface preparation should be specified and executed to recognized industry standards. The following designations apply to this project:</p>
+      <ul>
+        {% for std in standards %}
+          <li><strong>{{ std.designation }}</strong> — {{ std.name }}
+            {% if std.applicability %} <em>({{ std.applicability }})</em>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="placeholder-text">No surface preparation requirements recorded for this assessment.</p>
+    {% endif %}
+
+  </div>
+
+
+  <!-- ================================================================
+       SECTION 6: RECOMMENDED COATING SYSTEM
+       ================================================================ -->
+  <div class="section">
+
+    <div class="section-heading">6. Proposed Recommended Coating System</div>
+
+    <div class="system-highlight-box">
+      Recommended System: {{ coating_system.name }}
+    </div>
+
+    {% if coating_system.description and coating_system.description != "Not provided for this assessment." %}
+      <div class="coating-description">{{ coating_system.description | nl2br }}</div>
+    {% endif %}
+
+    {% if coating_system.coat_sequence %}
+      <table class="coat-sequence-table">
+        <thead>
+          <tr>
+            <th class="coat-col">Layer / Step</th>
+            <th class="product-col">Proposed Product &amp; Critical Information</th>
+            <th class="reason-col">Reason for Recommendation</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for coat in coating_system.coat_sequence %}
+            <tr>
+              <td class="coat-col">{{ coat.coat }}</td>
+              <td class="product-col">{{ coat.product }}</td>
+              <td class="reason-col">
+                {% if coat.reason %}{{ coat.reason }}{% else %}<span class="placeholder-text">—</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+    {% if coating_system_perf_notes %}
+      <div class="perf-notes-block">
+        <strong>System-performance notes from manufacturer literature:</strong>
+        {{ coating_system_perf_notes | nl2br }}
+      </div>
+    {% endif %}
+
+  </div>
+
+
+  <!-- ================================================================
+       SECTION 7: INSTALLATION NOTES
+       ================================================================ -->
+  <div class="section installation-notes">
+
+    <div class="section-heading">7. Installation Notes and Precautions</div>
+
+    {% if installation_notes %}
+      <ul>
+        {% for note in installation_notes %}
+          <li>{{ note }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="placeholder-text">Not provided for this assessment.</p>
+    {% endif %}
+
+  </div>
+
+
+  <!-- ================================================================
+       SECTION 8: CONCLUSION
+       ================================================================ -->
+  <div class="section conclusion-section">
+
+    <div class="section-heading">8. Conclusion</div>
+
+    {% if conclusion and conclusion != "Not provided for this assessment." %}
+      <div>{{ conclusion | nl2br }}</div>
+    {% else %}
+      <p class="placeholder-text">Not provided for this assessment.</p>
+    {% endif %}
+
+    {% if conclusion_callout %}
+      <div class="callout-box">{{ conclusion_callout | nl2br }}</div>
+    {% endif %}
+
+  </div>
+
+
+  <!-- ================================================================
+       SECTION 9: TECHNICAL REFERENCE BASIS
+       ================================================================ -->
+  <div class="section tech-refs">
+
+    <div class="section-heading">9. Technical Reference Basis</div>
+
+    {% if technical_references %}
+      <ul>
+        {% for ref in technical_references %}
+          <li>{{ ref }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="placeholder-text">No technical references recorded for this assessment.</p>
+    {% endif %}
+
+  </div>
+
+
+</body>
+</html>

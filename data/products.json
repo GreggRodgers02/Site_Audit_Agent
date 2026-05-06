@@ -1,0 +1,155 @@
+[
+  {
+    "product_name": "Macropoxy 646",
+    "product_number": "B58W600",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-macropoxy-646-b58w600.pdf",
+    "description": "Fast-cure epoxy intermediate/topcoat for steel and concrete in atmospheric and immersion service.",
+    "category": "intermediate",
+    "surface_types": ["steel", "concrete", "galvanized"],
+    "aliases": ["MP646", "Macropoxy646", "B58W600"]
+  },
+  {
+    "product_name": "Macropoxy 920",
+    "product_number": "B58W920",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-macropoxy-920-b58w920.pdf",
+    "description": "Fast-cure, high-build epoxy coating for steel in aggressive atmospheric and splash/spray service.",
+    "category": "intermediate",
+    "surface_types": ["steel", "concrete"],
+    "aliases": ["MP920", "Macropoxy920", "B58W920"]
+  },
+  {
+    "product_name": "Zinc Clad IV",
+    "product_number": "B69A100",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-zinc-clad-iv-b69a100.pdf",
+    "description": "Organic zinc-rich epoxy primer for structural steel providing galvanic corrosion protection.",
+    "category": "primer",
+    "surface_types": ["steel", "galvanized"],
+    "aliases": ["ZC4", "ZincCladIV", "Zinc Clad 4", "B69A100"]
+  },
+  {
+    "product_name": "Zinc Clad 11 HS",
+    "product_number": "B69Z11",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-zinc-clad-11-hs-b69z11.pdf",
+    "description": "High-solids inorganic zinc-rich silicate primer for steel with maximum corrosion resistance.",
+    "category": "primer",
+    "surface_types": ["steel"],
+    "aliases": ["ZC11", "ZC11HS", "Zinc Clad 11HS", "ZincClad11HS", "B69Z11"]
+  },
+  {
+    "product_name": "Tile-Clad HS",
+    "product_number": "B62W200",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-tile-clad-hs-b62w200.pdf",
+    "description": "High-solids epoxy topcoat providing durable finish for steel and concrete in industrial environments.",
+    "category": "topcoat",
+    "surface_types": ["steel", "concrete"],
+    "aliases": ["TileClad", "TC HS", "Tile Clad HS", "B62W200"]
+  },
+  {
+    "product_name": "Sher-Cryl HPA",
+    "product_number": "B42W100",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-sher-cryl-hpa-b42w100.pdf",
+    "description": "Waterborne acrylic polyurethane topcoat for concrete and masonry with excellent UV resistance.",
+    "category": "topcoat",
+    "surface_types": ["concrete", "masonry"],
+    "aliases": ["SherCryl", "Sher Cryl HPA", "SherCrylHPA", "B42W100"]
+  },
+  {
+    "product_name": "Corothane I GalvaPac",
+    "product_number": "B65W100",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-corothane-i-galvapac-b65w100.pdf",
+    "description": "Moisture-cure urethane zinc-rich primer for galvanized steel and previously painted surfaces.",
+    "category": "primer",
+    "surface_types": ["galvanized", "steel"],
+    "aliases": ["GalvaPac", "Corothane GalvaPac", "CorothaneI GalvaPac", "B65W100"]
+  },
+  {
+    "product_name": "Corothane I Mastic",
+    "product_number": "B65W200",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-corothane-i-mastic-b65w200.pdf",
+    "description": "Moisture-cure urethane mastic for heavily pitted and corroded steel surfaces.",
+    "category": "intermediate",
+    "surface_types": ["steel"],
+    "aliases": ["Corothane Mastic", "CorothaneI Mastic", "Corothane 1 Mastic", "B65W200"]
+  },
+  {
+    "product_name": "Hi-Mil SG-100",
+    "product_number": "B67W100",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-hi-mil-sg-100-b67w100.pdf",
+    "description": "Thick-film epoxy coating for steel in immersion and severe atmospheric service requiring high build.",
+    "category": "specialty",
+    "surface_types": ["steel", "concrete"],
+    "aliases": ["HiMil", "Hi Mil SG100", "HiMilSG100", "SG-100", "SG100", "B67W100"]
+  },
+  {
+    "product_name": "Dura-Plate 235",
+    "product_number": "B67W235",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-dura-plate-235-b67w235.pdf",
+    "description": "High-build epoxy intermediate coat for steel and concrete in severe industrial and marine environments.",
+    "category": "intermediate",
+    "surface_types": ["steel", "concrete"],
+    "aliases": ["DuraPlate235", "Dura Plate 235", "DP235", "B67W235"]
+  },
+  {
+    "product_name": "Dura-Plate UHS",
+    "product_number": "B67W400",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-dura-plate-uhs-b67w400.pdf",
+    "description": "Ultra-high-solids epoxy for fast single-coat application on steel in atmospheric and immersion service.",
+    "category": "intermediate",
+    "surface_types": ["steel", "concrete"],
+    "aliases": ["DuraPlateUHS", "Dura Plate UHS", "DPUHS", "B67W400"]
+  },
+  {
+    "product_name": "Recoatable Epoxy Primer",
+    "product_number": "B62-100",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-recoatable-epoxy-primer-b62-100.pdf",
+    "description": "Epoxy primer for steel and concrete with extended recoat window for multi-coat systems.",
+    "category": "primer",
+    "surface_types": ["steel", "concrete"],
+    "aliases": ["REP", "Recoatable EP", "Recoatable Epoxy", "B62-100"]
+  },
+  {
+    "product_name": "Epo-Plex 880",
+    "product_number": "B67W880",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-epo-plex-880-b67w880.pdf",
+    "description": "High-build epoxy coating for concrete immersion and severe chemical exposure applications.",
+    "category": "specialty",
+    "surface_types": ["concrete"],
+    "aliases": ["EpoPlex880", "Epo Plex 880", "EpoPlex", "B67W880"]
+  },
+  {
+    "product_name": "Kem Aqua Plus",
+    "product_number": "B42W400",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-kem-aqua-plus-b42w400.pdf",
+    "description": "Waterborne acrylic epoxy topcoat for interior steel and concrete with low odor and easy cleanup.",
+    "category": "topcoat",
+    "surface_types": ["steel", "concrete"],
+    "aliases": ["KemAqua", "Kem Aqua", "KemAquaPlus", "B42W400"]
+  },
+  {
+    "product_name": "Firetex M90/02",
+    "product_number": "FX-M9002",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-firetex-m90-02-fx-m9002.pdf",
+    "description": "Solvent-borne intumescent coating for structural steel fire protection in interior and semi-exterior environments.",
+    "category": "specialty",
+    "surface_types": ["steel"],
+    "aliases": ["Firetex M9002", "FiretexM9002", "Firetex M90", "M90/02", "FX-M9002"]
+  },
+  {
+    "product_name": "Sher-Bar Piling Jacket",
+    "product_number": "B68P100",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-sher-bar-piling-jacket-b68p100.pdf",
+    "description": "Reinforced epoxy piling jacket system for marine piling corrosion protection in the splash/tidal zone.",
+    "category": "specialty",
+    "surface_types": ["steel", "concrete"],
+    "aliases": ["SherBar", "Piling Jacket", "Sher Bar Piling Jacket", "B68P100"]
+  },
+  {
+    "product_name": "Marathon",
+    "product_number": "B42T100",
+    "pds_url": "https://www.sherwin-williams.com/content/dam/sherwin-williams/documents/product-data-sheets/protective/pds-marathon-b42t100.pdf",
+    "description": "High-performance waterborne acrylic topcoat for exterior steel and industrial structures with outstanding durability.",
+    "category": "topcoat",
+    "surface_types": ["steel", "concrete", "masonry"],
+    "aliases": ["Marathon Topcoat", "B42T100"]
+  }
+]

@@ -1,0 +1,56 @@
+# =============================================================================
+# systemd Service Unit — Site Audit Agent
+# Sherwin-Williams PCG Asset Protection
+# =============================================================================
+#
+# BEFORE USING THIS FILE:
+#   1. Set User= to the non-root user that owns /srv/site-audit-agent/.
+#      This is typically the SSH user you used to clone the repo, e.g.:
+#          User=deploy
+#      Do NOT run as root.
+#   2. Ensure /srv/site-audit-agent/.env exists and contains your
+#      OPENAI_API_KEY before starting this service.
+#   3. Install this file to /etc/systemd/system/ and reload systemd:
+#          sudo cp site-audit-agent.service /etc/systemd/system/
+#          sudo systemctl daemon-reload
+#          sudo systemctl enable site-audit-agent
+#          sudo systemctl start site-audit-agent
+# =============================================================================
+
+[Unit]
+Description=Site Audit Agent — Streamlit application for Sherwin-Williams PCG APMs
+After=network.target
+
+[Service]
+Type=simple
+
+# FILL IN: Set to the non-root OS user that owns /srv/site-audit-agent/
+# Example: User=deploy
+User=REPLACE_WITH_DEPLOY_USERNAME
+
+WorkingDirectory=/srv/site-audit-agent
+
+# Secrets (OPENAI_API_KEY, model names) are loaded from this file at startup.
+# File must exist with permissions 600 before starting the service.
+# Format: KEY=VALUE (no "export" prefix — systemd processes these directly)
+EnvironmentFile=/srv/site-audit-agent/.env
+
+# Start Streamlit bound to localhost only — Nginx proxies external traffic
+ExecStart=/srv/site-audit-agent/venv/bin/streamlit run app.py \
+    --server.address 127.0.0.1 \
+    --server.port 8501 \
+    --server.headless true \
+    --server.enableCORS false \
+    --server.enableXsrfProtection false
+
+# Automatically restart the service if it crashes
+Restart=always
+RestartSec=5
+
+# Route all stdout/stderr to systemd journal
+# View logs with: journalctl -u site-audit-agent -f
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
