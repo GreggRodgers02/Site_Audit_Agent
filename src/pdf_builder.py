@@ -39,12 +39,12 @@ class PDFBuildError(Exception):
 
 def _require_weasyprint():
     try:
-        homebrew_lib = "/opt/homebrew/lib"
         existing = os.environ.get("DYLD_LIBRARY_PATH", "")
-        if homebrew_lib not in existing:
-            os.environ["DYLD_LIBRARY_PATH"] = (
-                f"{homebrew_lib}:{existing}" if existing else homebrew_lib
-            )
+        # Apple Silicon Homebrew: /opt/homebrew/lib; Intel Homebrew: /usr/local/lib
+        for lib_path in ("/opt/homebrew/lib", "/usr/local/lib"):
+            if lib_path not in existing:
+                existing = f"{lib_path}:{existing}" if existing else lib_path
+        os.environ["DYLD_LIBRARY_PATH"] = existing
         from weasyprint import HTML
         return HTML
     except OSError as exc:
