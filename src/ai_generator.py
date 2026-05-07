@@ -779,20 +779,37 @@ def generate_site_assessment(
     apm_name: str,
     photos: list,
     coating_system: str,
+    on_step=None,
 ) -> dict:
     """
     Generate a complete site assessment from APM intake-form inputs.
 
+    Parameters
+    ----------
+    on_step : callable | None
+        Optional callback invoked at each major pipeline step with a short
+        human-readable status string. Used by the UI to drive a live progress
+        indicator.
+
     Returns a content dict matching the schema expected by pdf_builder.build_pdf().
     Raises AIGenerationError on any unrecoverable failure.
     """
+    def _step(msg: str) -> None:
+        if on_step is not None:
+            try:
+                on_step(msg)
+            except Exception:
+                pass  # Status callback must never break generation
+
     client = _get_client()
 
     # Step 1: Per-photo vision analysis (runs first so findings inform web research)
     photo_findings: list[tuple[str, str]] = []
     photo_entries: list[dict] = []
+    _total_photos = len(photos)
 
     for i, photo_file in enumerate(photos, start=1):
+        _step(f"Analyzing photo {i} of {_total_photos}…")
         label = f"Photo {i}"
         try:
             caption = _analyze_photo(client, photo_file)
@@ -817,6 +834,7 @@ def generate_site_assessment(
         photo_entries.append({"file_path": "", "caption": caption})
 
     # Step 2: Web research — now informed by actual observed conditions from photos
+    _step("Researching current Sherwin-Williams products…")
     photo_findings_summary = "\n\n".join(
         f"{label}: {caption}" for label, caption in photo_findings
         if not caption.startswith("_Automated analysis")
@@ -826,6 +844,7 @@ def generate_site_assessment(
     )
 
     # Step 3: Consolidated narrative
+    _step("Writing assessment narrative…")
     try:
         narrative = _generate_narrative(
             client=client,
@@ -844,6 +863,7 @@ def generate_site_assessment(
         ) from exc
 
     # Step 4: Parse all sections
+    _step("Structuring report sections…")
     executive_summary, exec_callout = _parse_executive_summary(narrative)
     if not executive_summary:
         paragraphs = [p.strip() for p in narrative.split("\n\n") if p.strip()]
@@ -859,9 +879,15 @@ def generate_site_assessment(
     standards = _parse_standards_from_narrative(narrative)
 
     # Step 5: Fill in missing PDS URLs via targeted per-product web search
-    for coat in coating_system_dict.get("coat_sequence", []):
-        if not coat.get("pds_url") and coat.get("product"):
-            coat["pds_url"] = _lookup_pds_url(client, coat["product"])
+    _coats_needing_url = [
+        c for c in coating_system_dict.get("coat_sequence", [])
+        if not c.get("pds_url") and c.get("product")
+    ]
+    for _idx, coat in enumerate(_coats_needing_url, start=1):
+        _step(f"Looking up product data sheet {_idx} of {len(_coats_needing_url)}…")
+        coat["pds_url"] = _lookup_pds_url(client, coat["product"])
+
+    _step("Finalizing report…")
 
     return {
         "facility_name": facility_name,

@@ -103,6 +103,16 @@ def _import_preview_builder():
 
 
 # ---------------------------------------------------------------------------
+# Runtime detection — used to warn APMs that Streamlit Cloud has an ephemeral
+# filesystem and saved reports may be lost on app restart.
+# ---------------------------------------------------------------------------
+
+def _is_streamlit_cloud() -> bool:
+    """Heuristic: Streamlit Community Cloud mounts the app source under /mount/src."""
+    return os.path.isdir("/mount/src")
+
+
+# ---------------------------------------------------------------------------
 # Helpers for serialising list fields to editable text and back
 # ---------------------------------------------------------------------------
 
@@ -352,6 +362,13 @@ with st.sidebar:
 
     st.header("📋 Past Reports")
 
+    if _is_streamlit_cloud():
+        st.warning(
+            "⚠ Running on Streamlit Cloud — saved reports may be lost when the app "
+            "restarts (redeploys, idle timeout). Always download the PDF immediately "
+            "to keep a copy."
+        )
+
     if not _LIBRARY_AVAILABLE:
         st.warning("Document library unavailable. Report saving and history are disabled.")
     else:
@@ -530,9 +547,14 @@ if submit_button:
             st.error(f"Failed to load the AI generation module: {import_exc}")
             st.stop()
 
-        with st.spinner(
-            "Researching products and analyzing site photos… This may take 60–120 seconds."
-        ):
+        with st.status(
+            "Generating assessment — this may take 60–120 seconds…",
+            expanded=True,
+        ) as _gen_status:
+            def _update_status(msg: str) -> None:
+                _gen_status.update(label=msg)
+                st.write(msg)
+
             try:
                 result = generate_site_assessment(
                     facility_name=facility_name.strip(),
@@ -540,11 +562,15 @@ if submit_button:
                     apm_name=apm_name.strip(),
                     photos=uploaded_photos,
                     coating_system=coating_system.strip(),
+                    on_step=_update_status,
                 )
+                _gen_status.update(label="Assessment complete", state="complete")
             except AIGenerationError as ai_err:
+                _gen_status.update(label="Generation failed", state="error")
                 st.error(f"Report generation failed: {ai_err}")
                 st.stop()
             except Exception as unexpected_err:
+                _gen_status.update(label="Generation failed", state="error")
                 st.error(f"An unexpected error occurred: {unexpected_err}")
                 st.stop()
 
@@ -782,44 +808,22 @@ if "result" in st.session_state:
                     pdf_content = _build_pdf_content()
                     pdf_bytes = build_pdf(pdf_content)
 
-                    _pdf_filename = None
-                    if _LIBRARY_AVAILABLE:
-                        try:
-                            from pathlib import Path as _Path
-                            _rel_path = _build_report_filename(
-                                pdf_content["facility_name"],
-                                pdf_content["client_name"],
-                            )
-                            _abs_pdf_path = _Path(__file__).parent / _rel_path
-                            _abs_pdf_path.parent.mkdir(parents=True, exist_ok=True)
-                            with open(_abs_pdf_path, "wb") as _pdf_fh:
-                                _pdf_fh.write(pdf_bytes)
-                            _save_report(
-                                facility_name=pdf_content["facility_name"],
-                                client_name=pdf_content["client_name"],
-                                apm_name=pdf_content["apm_name"],
-                                file_path=_rel_path,
-                            )
-                            st.session_state["pdf_saved_to_library"] = True
-                            _pdf_filename = _Path(_rel_path).name
-                        except Exception as _lib_save_err:
-                            import logging as _log2
-                            _log2.getLogger(__name__).warning(
-                                "Could not save report to library: %s", _lib_save_err
-                            )
-                            st.session_state["pdf_saved_to_library"] = False
-
-                    if not _pdf_filename:
-                        _safe = "".join(
-                            c if c.isalnum() or c in ("-", "_") else "_"
-                            for c in pdf_content["facility_name"]
-                        )
-                        _pdf_filename = (
-                            f"SW_SiteAudit_{_safe}_{pdf_content.get('assessment_date', 'today')}.pdf"
-                        )
+                    _safe = "".join(
+                        c if c.isalnum() or c in ("-", "_") else "_"
+                        for c in pdf_content["facility_name"]
+                    )
+                    _pdf_filename = (
+                        f"SW_SiteAudit_{_safe}_{pdf_content.get('assessment_date', 'today')}.pdf"
+                    )
 
                     st.session_state["pdf_bytes"] = pdf_bytes
                     st.session_state["pdf_filename"] = _pdf_filename
+                    st.session_state["pdf_content_snapshot"] = {
+                        "facility_name": pdf_content["facility_name"],
+                        "client_name": pdf_content["client_name"],
+                        "apm_name": pdf_content["apm_name"],
+                    }
+                    st.session_state.pop("pdf_saved_to_library", None)
 
                 except PDFBuildError as pdf_err:
                     st.error(f"PDF generation failed: {pdf_err}")
@@ -827,16 +831,60 @@ if "result" in st.session_state:
                     st.error(f"Unexpected error building PDF: {unexpected_pdf_err}")
 
     if st.session_state.get("pdf_bytes"):
-        if st.session_state.get("pdf_saved_to_library"):
-            st.success("Report saved to library.")
-        elif st.session_state.get("pdf_saved_to_library") is False:
-            st.warning("PDF generated but could not be saved to library.")
+        st.success("PDF ready.")
 
-        st.download_button(
-            label="⬇ Download PDF Report",
-            data=st.session_state["pdf_bytes"],
-            file_name=st.session_state.get("pdf_filename", "SW_SiteAudit.pdf"),
-            mime="application/pdf",
-            key="download_pdf",
-        )
-        st.success("PDF ready — click above to download.")
+        _dl_col, _save_col = st.columns(2)
+        with _dl_col:
+            st.download_button(
+                label="⬇ Download PDF",
+                data=st.session_state["pdf_bytes"],
+                file_name=st.session_state.get("pdf_filename", "SW_SiteAudit.pdf"),
+                mime="application/pdf",
+                key="download_pdf",
+                type="primary",
+                use_container_width=True,
+            )
+        with _save_col:
+            _save_disabled = (
+                not _LIBRARY_AVAILABLE
+                or st.session_state.get("pdf_saved_to_library") is True
+            )
+            _save_label = (
+                "✓ Saved to Library"
+                if st.session_state.get("pdf_saved_to_library") is True
+                else "💾 Save to Library"
+            )
+            if st.button(
+                _save_label,
+                key="save_to_library",
+                disabled=_save_disabled,
+                use_container_width=True,
+            ):
+                try:
+                    from pathlib import Path as _Path
+                    _snapshot = st.session_state["pdf_content_snapshot"]
+                    _rel_path = _build_report_filename(
+                        _snapshot["facility_name"],
+                        _snapshot["client_name"],
+                    )
+                    _abs_pdf_path = _Path(__file__).parent / _rel_path
+                    _abs_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(_abs_pdf_path, "wb") as _pdf_fh:
+                        _pdf_fh.write(st.session_state["pdf_bytes"])
+                    _save_report(
+                        facility_name=_snapshot["facility_name"],
+                        client_name=_snapshot["client_name"],
+                        apm_name=_snapshot["apm_name"],
+                        file_path=_rel_path,
+                    )
+                    st.session_state["pdf_saved_to_library"] = True
+                    st.rerun()
+                except Exception as _lib_save_err:
+                    import logging as _log2
+                    _log2.getLogger(__name__).warning(
+                        "Could not save report to library: %s", _lib_save_err
+                    )
+                    st.error(f"Could not save to library: {_lib_save_err}")
+
+        if st.session_state.get("pdf_saved_to_library") is True:
+            st.success("Report saved to the document library.")
