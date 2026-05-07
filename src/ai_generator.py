@@ -151,28 +151,51 @@ _SYSTEM_PROMPT = (
 # Online product research
 # ---------------------------------------------------------------------------
 
-def _web_research_coating_system(client, coating_system: str) -> str:
+def _web_research_coating_system(
+    client,
+    coating_system: str,
+    photo_findings_summary: str = "",
+) -> str:
     """
-    Research the specified coating system online using OpenAI Responses API web search.
-    Returns research text on success, empty string if web search is unavailable.
+    Research current SW PCG products and systems using live web search.
+
+    Runs after photo analysis so the search can be targeted to the actual
+    observed substrate types and failure modes, not just the APM-specified system.
+    Always searches even when no system is pre-specified so the narrative is
+    informed by current product availability rather than training-data cutoffs.
     """
-    if not coating_system.strip():
-        return ""
+    conditions_block = (
+        f"\n\nObserved site conditions from photo analysis:\n{photo_findings_summary}"
+        if photo_findings_summary.strip()
+        else ""
+    )
+    system_block = (
+        f"\n\nAPM-specified coating system to verify and research:\n{coating_system.strip()}"
+        if coating_system.strip()
+        else "\n\nNo system has been pre-specified — recommend the most appropriate current SW PCG system for the observed conditions."
+    )
+
+    query = (
+        "You are researching Sherwin-Williams PCG protective coating products for a site assessment report. "
+        "Search the Sherwin-Williams website for:\n"
+        "1. Current recommended coating systems for the observed substrate types and failure modes below.\n"
+        "2. For each relevant product: full product name, DFT range, coverage rate per gallon, "
+        "application temperature window, recoat window, mixing ratio, and the direct PDS page URL on sherwin-williams.com.\n"
+        "3. Confirm whether the APM-specified system (if any) is current and still available, "
+        "or flag if it has been superseded by a newer product."
+        + conditions_block
+        + system_block
+    )
+
     try:
         response = client.responses.create(
             model="gpt-4o-mini",
             tools=[{"type": "web_search_preview"}],
-            input=(
-                "Search the Sherwin-Williams website for product data sheet specifications "
-                "for this coating system. For each product provide: DFT ranges, coverage "
-                "rates per gallon, application temperature window, recoat window, mixing "
-                "ratio, and the direct PDS URL on sherwin-williams.com. "
-                "Coating system to research:\n\n" + coating_system
-            ),
+            input=query,
         )
         text = getattr(response, "output_text", "") or ""
         if text:
-            logger.info("Web research succeeded for coating system.")
+            logger.info("Web research succeeded.")
         return text
     except Exception as exc:
         logger.info(
@@ -765,10 +788,7 @@ def generate_site_assessment(
     """
     client = _get_client()
 
-    # Step 1: Research coating system online
-    web_research = _web_research_coating_system(client, coating_system)
-
-    # Step 2: Per-photo vision analysis
+    # Step 1: Per-photo vision analysis (runs first so findings inform web research)
     photo_findings: list[tuple[str, str]] = []
     photo_entries: list[dict] = []
 
@@ -777,10 +797,6 @@ def generate_site_assessment(
         try:
             caption = _analyze_photo(client, photo_file)
         except AIGenerationError as ai_exc:
-            # Auth, rate-limit, and config failures should still abort; surface
-            # them to the caller. Per-photo issues (content policy, network blip,
-            # corrupt image) are logged and replaced with a placeholder so the
-            # rest of the report can still be generated.
             err_msg = str(ai_exc).lower()
             if any(t in err_msg for t in ("authentication", "api key", "rate limit")):
                 raise
@@ -799,6 +815,15 @@ def generate_site_assessment(
             )
         photo_findings.append((label, caption))
         photo_entries.append({"file_path": "", "caption": caption})
+
+    # Step 2: Web research — now informed by actual observed conditions from photos
+    photo_findings_summary = "\n\n".join(
+        f"{label}: {caption}" for label, caption in photo_findings
+        if not caption.startswith("_Automated analysis")
+    )
+    web_research = _web_research_coating_system(
+        client, coating_system, photo_findings_summary
+    )
 
     # Step 3: Consolidated narrative
     try:
