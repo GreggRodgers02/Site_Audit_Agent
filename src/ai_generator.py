@@ -181,6 +181,35 @@ def _web_research_coating_system(client, coating_system: str) -> str:
         return ""
 
 
+def _lookup_pds_url(client, product_name: str) -> str:
+    """
+    Search sherwin-williams.com for the product data sheet page URL of a specific product.
+    Returns the URL string on success, empty string if not found.
+    """
+    import re
+    if not product_name.strip():
+        return ""
+    try:
+        response = client.responses.create(
+            model="gpt-4o-mini",
+            tools=[{"type": "web_search_preview"}],
+            input=(
+                f"Find the official product data sheet page on sherwin-williams.com for: "
+                f"{product_name}\n\n"
+                "Return only the direct URL to the product page or PDS PDF on "
+                "sherwin-williams.com. Nothing else — just the URL."
+            ),
+        )
+        text = getattr(response, "output_text", "") or ""
+        urls = re.findall(r"https?://[^\s\"'<>]*sherwin-williams\.com[^\s\"'<>]*", text)
+        if urls:
+            return urls[0].rstrip(".")
+        return ""
+    except Exception as exc:
+        logger.debug("PDS URL lookup failed for '%s': %s", product_name, exc)
+        return ""
+
+
 # ---------------------------------------------------------------------------
 # Per-photo vision analysis
 # ---------------------------------------------------------------------------
@@ -803,6 +832,11 @@ def generate_site_assessment(
     conclusion, conclusion_callout = _parse_conclusion(narrative)
     technical_references = _parse_technical_references(narrative)
     standards = _parse_standards_from_narrative(narrative)
+
+    # Step 5: Fill in missing PDS URLs via targeted per-product web search
+    for coat in coating_system_dict.get("coat_sequence", []):
+        if not coat.get("pds_url") and coat.get("product"):
+            coat["pds_url"] = _lookup_pds_url(client, coat["product"])
 
     return {
         "facility_name": facility_name,
