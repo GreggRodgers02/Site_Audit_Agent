@@ -5,90 +5,113 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Running the app
 
 ```bash
-# Activate the project virtualenv first
 source .venv/bin/activate
-
-# Start the Streamlit app
 streamlit run app.py
 ```
 
-The app runs on `http://localhost:8501` by default.
+The app runs on `http://localhost:8501` by default. Leave `APP_PASSWORD_HASH` unset in `.env` to skip the login gate during local development.
 
 ## Environment variables
 
-Copy `.env` and fill in values before running. Required keys:
+`.env` is loaded by `python-dotenv` at startup. For Streamlit Community Cloud, put these in the dashboard Secrets panel instead (as TOML). Reference: `.streamlit/secrets.toml.example`.
 
-```
-OPENAI_API_KEY=sk-...
-OPENAI_PRIMARY_MODEL=gpt-4o          # or any chat-completions-compatible model
-OPENAI_FALLBACK_MODEL=gpt-4o-mini    # used automatically if primary is unavailable
-```
+| Variable | Purpose |
+|---|---|
+| `OPENAI_API_KEY` | Required. |
+| `OPENAI_NARRATIVE_MODEL` | Main document generation. Default `gpt-5.4`. |
+| `OPENAI_PRIMARY_MODEL` | Vision + change requests. Default `gpt-4o`. |
+| `OPENAI_FALLBACK_MODEL` | Auto-fallback if primary unavailable. Default `gpt-4o-mini`. |
+| `APP_PASSWORD_HASH` | SHA-256 hex of the login password. Omit to run without auth. |
 
-The web-search step (`_web_research_coating_system`) calls `client.responses.create()` with `model="gpt-4o-mini"` unconditionally — it requires the OpenAI Responses API (SDK ≥1.30). It fails silently if the key or model doesn't support it.
+Generate `APP_PASSWORD_HASH`:
+```bash
+python -c "import hashlib; print(hashlib.sha256(b'yourpassword').hexdigest())"
+```
 
 ## Architecture
 
-### Request flow
+### AI generation pipeline (`src/ai_generator.py`)
+
+Steps run in this order inside `generate_site_assessment()`:
+
+1. **Photo analysis** (`_analyze_photo()` × N) — `gpt-4o` vision, `detail: "high"`, one call per photo. Runs first so findings are available for step 2.
+2. **Web research** (`_web_research_coating_system()`) — `gpt-4o-mini` + `web_search_preview` via OpenAI Responses API. Receives both the APM-specified system name and a summary of observed conditions from step 1 so searches target the actual substrate/failure modes. Runs even when no system is pre-specified.
+3. **Narrative generation** (`_generate_narrative()`) — single large call to `OPENAI_NARRATIVE_MODEL`. Prompt uses line-level markers (`CONDITION:`, `BULLET:`, `COAT:`, `CALLOUT:`, `REF:`, etc.) that the `_parse_*` family of functions extract via regex. Each parser has a fallback for missing markers.
+4. **PDS URL backfill** — after parsing, any coat in the sequence with an empty `pds_url` gets a targeted `_lookup_pds_url()` web search call. The narrative model often outputs `UNKNOWN` for PDS URLs; this step reliably fills them in.
+
+`_call_with_fallback()` wraps photo analysis and change-request calls: on model-availability errors it retries with `OPENAI_FALLBACK_MODEL`; rate-limit and auth errors surface immediately.
+
+### Session state flow (`app.py`)
+
+After generation, `_init_edit_state(result)` writes every editable field into `st.session_state` under `ed_*` keys. All subsequent page re-runs (preview, PDF export, sidebar interactions) read exclusively from `ed_*` keys — never from the original generation result. `_build_pdf_content()` assembles the final dict from session state immediately before rendering.
+
+**Serialization:** `existing_conditions` (list of `{condition, note}`) and `coat_sequence` (list of `{coat, product, reason, pds_url}`) are round-tripped through human-editable plain text using ` | ` as a field separator, one item per line. `_text_to_conditions()` and `_text_to_coat_sequence()` parse them back. The coat sequence text area is the canonical place APMs can manually add or correct PDS URLs.
+
+**Change history:** each AI change request applied via `apply_change_request()` is appended to `st.session_state["change_history"]` and shown in a collapsible section.
+
+### PDF rendering (`src/pdf_builder.py`)
+
+`build_pdf()` calls `_require_weasyprint()` which prepends both `/opt/homebrew/lib` (Apple Silicon) and `/usr/local/lib` (Intel Mac) to `DYLD_LIBRARY_PATH` before importing WeasyPrint.
+
+`render_preview_html()` reuses the same Jinja2 template but skips WeasyPrint — it injects `_PREVIEW_CSS_OVERRIDE` to make the document scroll-friendly in the browser.
+
+The `nl2br` Jinja2 filter is registered manually in both render paths; it is not built-in.
+
+**Template constraints:** `assets/pdf_template.html` targets WeasyPrint, which does not support flexbox or CSS grid. All multi-column layouts use `display: table` / `display: table-cell`. The running page header uses WeasyPrint-specific `position: running(running-header)` and `@top-left { content: element(...) }` — do not replace with standard CSS positioning.
+
+### Auth gate (`app.py`)
+
+Checked at module load time before any UI renders. `_get_stored_hash()` reads `APP_PASSWORD_HASH` from `st.secrets` first, then `os.environ`. If set, unauthenticated users see only the login form. The plain-text password is hashed with `hashlib.sha256` and compared — users type their plain password, not the hash.
+
+### Sidebar branding
+
+`brand_logo1` and `brand_logo2` session state keys hold raw `UploadedFile` objects. `_build_pdf_content()` calls `_encode_logo_upload()` at render time (not at upload time) to produce base64 data URIs. Brand colors (`brand_blue`, `brand_red`) are passed as Jinja2 variables and replace all hardcoded hex values in the template.
+
+## Deployment
+
+### Streamlit Community Cloud
+
+`packages.txt` in the repo root lists apt packages that Streamlit Cloud installs before starting the app. Required for WeasyPrint on Linux (Debian Trixie):
 
 ```
-Intake form (app.py)
-  └─ generate_site_assessment()        ← src/ai_generator.py
-       ├─ _web_research_coating_system()   OpenAI Responses API + web_search_preview
-       ├─ _analyze_photo()  ×N             Vision API, one call per uploaded photo
-       └─ _generate_narrative()            Single large chat call → 8-section report
-            └─ parsers (_parse_*)          Regex extraction → structured fields
-  └─ st.session_state stores result
-  └─ APM edits each section in-place
-  └─ build_pdf()                       ← src/pdf_builder.py
-       ├─ _build_template_context()        Merges edited fields → Jinja2 vars
-       ├─ Jinja2 renders pdf_template.html ← assets/pdf_template.html
-       └─ WeasyPrint → bytes → download
-  └─ save_report()                     ← src/document_library.py (SQLite)
+libpango-1.0-0
+libpangocairo-1.0-0
+libcairo2
+libgdk-pixbuf-2.0-0
+shared-mime-info
 ```
 
-### Key design decisions
+Note: use `libgdk-pixbuf-2.0-0` (not `libgdk-pixbuf2.0-0`) — the latter was renamed in Debian 13.
 
-**Session state persistence.** After generation `_init_edit_state(result)` writes every editable field into `st.session_state` under `ed_*` keys. All subsequent re-runs (PDF button, sidebar interactions) read from those keys — never from the form. `_build_pdf_content()` assembles the final dict from session state immediately before PDF rendering.
+Secrets go in the Streamlit Cloud dashboard → App settings → Secrets (TOML format, same keys as `.env`).
 
-**Pipe-separated text encoding.** List-of-dicts fields (`existing_conditions`, `coat_sequence`) are serialised to human-editable plain text using ` | ` as a field separator and one item per line. `_text_to_conditions()` and `_text_to_coat_sequence()` parse them back before PDF generation.
+### VPS (Ubuntu 22.04)
 
-**Prompt structured markers.** The narrative prompt uses `CONDITION:`, `BULLET:`, `COAT:`, `CALLOUT:`, `REF:`, etc. as line-level markers. The `_parse_*` family of functions in `ai_generator.py` use `re.search`/`re.finditer` against these markers to extract structured data from the free-text LLM output. If a section is missing or the markers aren't present, each parser has a fallback (bullet stripping, paragraph splitting).
+See `deploy/README.md` for the full guide. Key files:
 
-**PDF template layout.** `assets/pdf_template.html` is a Jinja2+WeasyPrint document. WeasyPrint does not support flexbox or CSS grid — all multi-column layouts use `display: table` / `display: table-cell`. Photos render in a 2-column grid using a `{% for row_i in range(...) %}` loop that emits a `<table>` per row pair. Running header/footer use WeasyPrint's named `@page` areas and `position: running(...)`.
+- `deploy/setup.sh` — one-shot installer; set `REPO_URL` before running
+- `deploy/site-audit-agent.service` — systemd unit; set `User=` to the deploy user
+- `deploy/nginx.conf` — reverse proxy to Streamlit on port 8501; includes WebSocket upgrade headers required for Streamlit
 
-**No local product catalog.** Product information comes entirely from the AI (training knowledge + optional live web search). `src/product_catalog.py` remains in the repo but is no longer imported by `app.py` or `pdf_builder.py`.
+Update command sequence:
+```bash
+cd /srv/site-audit-agent && git pull
+/srv/site-audit-agent/venv/bin/pip install -r requirements.txt
+sudo systemctl restart site-audit-agent
+```
 
-### Module responsibilities
+## Dependencies
 
-| File | Responsibility |
-|---|---|
-| `app.py` | Streamlit UI: form, session state, edit section, PDF trigger, sidebar library |
-| `src/ai_generator.py` | OpenAI calls: web research, photo vision, narrative generation, all section parsers |
-| `src/pdf_builder.py` | Jinja2 render → WeasyPrint → PDF bytes; template context assembly |
-| `assets/pdf_template.html` | Branded HTML template; all CSS lives inline; 9-section SW report layout |
-| `src/document_library.py` | SQLite CRUD for report metadata; PDF saved to `reports/`; DB at `data/reports.db` |
-| `src/product_catalog.py` | Legacy fuzzy catalog matcher — not used in current flow |
-
-### Generated report sections
-
-The AI narrative prompt requests 8 sections using structured line markers; the PDF template renders 9 sections (section 3 — Photo Log — is injected by the PDF builder, not the LLM):
-
-1. Introduction / Executive Summary  
-2. Existing Conditions and Observed Distress  
-3. Photo Log and Image-Based Observations *(photos from upload, not LLM)*  
-4. Observed Failure Analysis  
-5. Surface Preparation Requirements (AMPP and ICRI Basis)  
-6. Proposed Recommended Coating System  
-7. Installation Notes and Precautions  
-8. Conclusion  
-9. Technical Reference Basis  
-
-### Dependencies
-
-WeasyPrint requires native system libraries. On macOS:
+WeasyPrint requires native system libraries:
 
 ```bash
+# macOS (Apple Silicon)
+brew install pango cairo
+
+# macOS (Intel) — Homebrew installs to /usr/local, pdf_builder.py handles both paths automatically
 brew install pango cairo
 ```
 
-`pdf_builder.py` prepends `/opt/homebrew/lib` to `DYLD_LIBRARY_PATH` automatically at import time.
+On Linux (VPS), install via apt before `pip install weasyprint` (see `deploy/README.md` § WeasyPrint errors).
+
+`src/product_catalog.py` is a legacy fuzzy catalog matcher that is no longer imported anywhere. Do not re-import it.
