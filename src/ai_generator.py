@@ -46,11 +46,18 @@ def _get_client():
 
 
 def _primary_model() -> str:
+    """Vision-capable model used for photo analysis and lightweight completions."""
     return os.environ.get("OPENAI_PRIMARY_MODEL", "gpt-4o").strip()
 
 
 def _fallback_model() -> str:
+    """Fallback when primary is unavailable."""
     return os.environ.get("OPENAI_FALLBACK_MODEL", "gpt-4o-mini").strip()
+
+
+def _narrative_model() -> str:
+    """Most capable model — reserved for the main document generation step."""
+    return os.environ.get("OPENAI_NARRATIVE_MODEL", "gpt-5.4").strip()
 
 
 def _encode_image(uploaded_file) -> str:
@@ -309,7 +316,7 @@ Output: SYSTEM_NAME: <full system name as it would appear in a specification>
 Write 2-3 paragraphs describing the system composition, suitability for the observed conditions, and key performance characteristics drawn from SW manufacturer literature and PDS data.
 
 For each coat in the sequence output one line:
-COAT: <layer name> | PRODUCT: <product name, DFT range, coverage rate, and critical PDS parameters> | REASON: <why this layer is specified for these conditions>
+COAT: <layer name> | PRODUCT: <product name, DFT range, coverage rate, and critical PDS parameters> | REASON: <why this layer is specified for these conditions> | PDS_URL: <direct URL to official Sherwin-Williams product data sheet page on sherwin-williams.com, or UNKNOWN if not available>
 
 Then on its own line output:
 PERF_NOTES: <system performance data from SW manufacturer literature: compressive strength, bond strength, abrasion resistance, or other published physical properties>
@@ -354,11 +361,18 @@ def _generate_narrative(
         {"role": "system", "content": _SYSTEM_PROMPT},
         {"role": "user", "content": user_prompt},
     ]
+    model = _narrative_model()
     try:
-        return _call_with_fallback(client, messages, max_tokens=8000)
-    except AIGenerationError:
-        raise
+        return _chat_completion(client, model, messages, max_tokens=8000)
     except Exception as exc:
+        # Fall back to primary model only on availability errors, not rate limits
+        err = str(exc).lower()
+        if any(t in err for t in ("not found", "does not exist", "invalid model", "unavailable")):
+            logger.warning("Narrative model '%s' unavailable — falling back to primary.", model)
+            try:
+                return _chat_completion(client, _primary_model(), messages, max_tokens=8000)
+            except Exception as fb_exc:
+                _translate_api_error(fb_exc)
         _translate_api_error(exc)
 
 
@@ -498,17 +512,21 @@ def _parse_coating_system(coating_system_input: str, narrative: str) -> tuple[di
     perf_notes = pn.group(1).strip() if pn else ""
 
     coat_pattern = re.compile(
-        r"COAT:\s*(.+?)\s*\|\s*PRODUCT:\s*(.+?)\s*\|\s*REASON:\s*(.+)",
+        r"COAT:\s*(.+?)\s*\|\s*PRODUCT:\s*(.+?)\s*\|\s*REASON:\s*(.+?)(?:\s*\|\s*PDS_URL:\s*(.+))?$",
         re.IGNORECASE,
     )
     coat_sequence = []
     for line in section.splitlines():
         m = coat_pattern.search(line)
         if m:
+            pds_url = (m.group(4) or "").strip()
+            if pds_url.lower() in ("unknown", "n/a", ""):
+                pds_url = ""
             coat_sequence.append({
                 "coat": m.group(1).strip(),
                 "product": m.group(2).strip(),
                 "reason": m.group(3).strip(),
+                "pds_url": pds_url,
             })
 
     description = _strip_markers(section)
@@ -609,6 +627,99 @@ def _parse_standards_from_narrative(narrative: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+def apply_change_request(change_request: str, current_sections: dict) -> dict:
+    """
+    Apply a natural-language change request to the current report sections.
+
+    Parameters
+    ----------
+    change_request : str
+        Plain-English description of the desired change (e.g. "make the conclusion shorter").
+    current_sections : dict
+        Current editable section values keyed by ed_* session state names.
+
+    Returns
+    -------
+    dict
+        Subset of ed_* keys whose values should be updated in session state.
+        Only changed fields are returned.
+
+    Raises
+    ------
+    AIGenerationError
+        On API failure or unparseable response.
+    """
+    import json
+    import re as _re
+
+    client = _get_client()
+
+    sections_text = json.dumps(current_sections, indent=2, ensure_ascii=False)
+
+    prompt = f"""You are making targeted edits to a Sherwin-Williams site assessment report.
+
+User-requested change: {change_request}
+
+Current report content (keyed by session state field names):
+{sections_text}
+
+Return a JSON object containing ONLY the fields that need to change. Use exactly these key names:
+  ed_exec_summary       (executive summary paragraphs)
+  ed_exec_callout       (assessment basis callout box)
+  ed_conditions         (existing conditions — "Condition | Note" one per line)
+  ed_failure_drivers    (likely failure drivers sentence)
+  ed_failure_analysis   (failure analysis — "• Bullet" one per line)
+  ed_failure_callout    (practical implication callout box)
+  ed_surface_prep       (surface preparation narrative)
+  ed_coating_name       (coating system name)
+  ed_coating_desc       (coating system description)
+  ed_coat_sequence      (coat sequence — "Layer | Product specs | Reason | PDS URL" one per line)
+  ed_perf_notes         (system performance notes)
+  ed_install_notes      (installation notes — one per line)
+  ed_conclusion         (conclusion paragraphs)
+  ed_conclusion_callout (closing callout box)
+  ed_tech_refs          (technical references — one per line)
+
+Include ONLY keys for fields that actually change. Return valid JSON only — no markdown fences, no explanation."""
+
+    messages = [
+        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+
+    try:
+        raw = _chat_completion(client, _primary_model(), messages, max_tokens=4000)
+    except AIGenerationError:
+        raise
+    except Exception as exc:
+        _translate_api_error(exc)
+
+    # Strip markdown fences if present
+    raw = _re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=_re.MULTILINE)
+    raw = _re.sub(r"\s*```$", "", raw.strip(), flags=_re.MULTILINE).strip()
+
+    json_match = _re.search(r"\{.*\}", raw, _re.DOTALL)
+    if not json_match:
+        raise AIGenerationError(
+            "The AI did not return a valid JSON response for the change request."
+        )
+
+    try:
+        changes = json.loads(json_match.group())
+    except json.JSONDecodeError as exc:
+        raise AIGenerationError(
+            f"Could not parse AI change response: {exc}"
+        ) from exc
+
+    valid_keys = {
+        "ed_exec_summary", "ed_exec_callout", "ed_conditions", "ed_failure_drivers",
+        "ed_failure_analysis", "ed_failure_callout", "ed_surface_prep", "ed_coating_name",
+        "ed_coating_desc", "ed_coat_sequence", "ed_perf_notes", "ed_install_notes",
+        "ed_conclusion", "ed_conclusion_callout", "ed_tech_refs",
+    }
+    return {k: v for k, v in changes.items() if k in valid_keys and isinstance(v, str)}
+
 
 def generate_site_assessment(
     facility_name: str,

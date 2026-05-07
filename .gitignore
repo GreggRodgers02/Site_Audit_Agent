@@ -1,0 +1,48 @@
+# Environment variables — never commit credentials
+.env
+
+# Streamlit secrets — manage in Streamlit Cloud dashboard or create locally
+.streamlit/secrets.toml
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pycache
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env.local
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Generated output
+*.pdf
+reports/
+output/
+
+# SQLite database — auto-generated at runtime; do NOT commit
+# data/products.json IS committed (seed data); only the DB is excluded here
+data/reports.db
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/

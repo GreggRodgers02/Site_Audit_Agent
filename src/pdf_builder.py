@@ -142,7 +142,13 @@ def _safe_list(value: Any) -> list:
     return []
 
 
-def _build_template_context(content: dict, logo01_uri: str, logo02_uri: str) -> dict:
+def _build_template_context(
+    content: dict,
+    logo01_uri: str,
+    logo02_uri: str,
+    brand_blue: str = "#003DA5",
+    brand_red: str = "#F5333F",
+) -> dict:
     facility_name = _safe_str(content.get("facility_name"), "Facility Name")
     client_name = _safe_str(content.get("client_name"), "Client Name")
     apm_name = _safe_str(content.get("apm_name"), "APM Name")
@@ -213,6 +219,8 @@ def _build_template_context(content: dict, logo01_uri: str, logo02_uri: str) -> 
     return {
         "logo01_uri": logo01_uri,
         "logo02_uri": logo02_uri,
+        "brand_blue": brand_blue,
+        "brand_red": brand_red,
         "facility_name": facility_name,
         "client_name": client_name,
         "apm_name": apm_name,
@@ -233,6 +241,58 @@ def _build_template_context(content: dict, logo01_uri: str, logo02_uri: str) -> 
         "conclusion_callout": conclusion_callout,
         "technical_references": technical_references,
     }
+
+
+_PREVIEW_CSS_OVERRIDE = """
+<style>
+  body { max-width: 900px; margin: 0 auto; padding: 32px 48px; background: #fff; }
+  .cover-page { margin: 0 !important; padding: 40px !important;
+                border-radius: 4px; min-height: auto !important; }
+  #running-header { position: static; display: table; width: 100%;
+                    margin-bottom: 20px; padding-bottom: 10px; }
+</style>
+"""
+
+
+def render_preview_html(content: dict) -> str:
+    """
+    Render the report as browser-viewable HTML for the in-app preview pane.
+    Reuses the same Jinja2 template as build_pdf() without running WeasyPrint.
+    """
+    if not _TEMPLATE_PATH.exists():
+        raise PDFBuildError(
+            f"PDF template not found at {_TEMPLATE_PATH}."
+        )
+
+    logo01_uri = content.get("logo01_uri_override") or _encode_asset(_LOGO_01_PATH)
+    logo02_uri = content.get("logo02_uri_override") or _encode_asset(_LOGO_02_PATH)
+    brand_blue = content.get("brand_blue", "#003DA5") or "#003DA5"
+    brand_red = content.get("brand_red", "#F5333F") or "#F5333F"
+
+    context = _build_template_context(content, logo01_uri, logo02_uri, brand_blue, brand_red)
+
+    Environment, FileSystemLoader, select_autoescape = _require_jinja2()
+    env = Environment(
+        loader=FileSystemLoader(str(_ASSETS_DIR)),
+        autoescape=select_autoescape(["html"]),
+        keep_trailing_newline=True,
+    )
+
+    import markupsafe
+
+    def nl2br(value: str) -> markupsafe.Markup:
+        escaped = markupsafe.escape(value)
+        return markupsafe.Markup(str(escaped).replace("\n", "<br>\n"))
+
+    env.filters["nl2br"] = nl2br
+
+    try:
+        template = env.get_template("pdf_template.html")
+        html_str = template.render(**context)
+    except Exception as exc:
+        raise PDFBuildError(f"Failed to render HTML template: {exc}") from exc
+
+    return html_str.replace("</head>", _PREVIEW_CSS_OVERRIDE + "</head>", 1)
 
 
 def build_pdf(content: dict) -> bytes:
@@ -261,10 +321,13 @@ def build_pdf(content: dict) -> bytes:
             "Ensure assets/pdf_template.html is present in the project directory."
         )
 
-    logo01_uri = _encode_asset(_LOGO_01_PATH)
-    logo02_uri = _encode_asset(_LOGO_02_PATH)
+    logo01_uri = content.get("logo01_uri_override") or _encode_asset(_LOGO_01_PATH)
+    logo02_uri = content.get("logo02_uri_override") or _encode_asset(_LOGO_02_PATH)
 
-    context = _build_template_context(content, logo01_uri, logo02_uri)
+    brand_blue = content.get("brand_blue", "#003DA5") or "#003DA5"
+    brand_red = content.get("brand_red", "#F5333F") or "#F5333F"
+
+    context = _build_template_context(content, logo01_uri, logo02_uri, brand_blue, brand_red)
 
     Environment, FileSystemLoader, select_autoescape = _require_jinja2()
 

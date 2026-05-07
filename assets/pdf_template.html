@@ -5,8 +5,8 @@
   Jinja2 + WeasyPrint template — Sherwin-Williams PCG Site Assessment Reports.
 
   Brand spec (SW Employer Brand Guidelines, March 2025):
-    SW Blue:    #003DA5  (PMS 293)
-    SW Red:     #F5333F  (PMS 032)
+    SW Blue:    {{ brand_blue }}  (PMS 293)
+    SW Red:     {{ brand_red }}  (PMS 032)
     Body text:  #2C2C2C
     Background: #F2F2F2
 
@@ -63,7 +63,7 @@
         color: #2C2C2C;
         vertical-align: top;
         padding-top: 6pt;
-        border-top: 1pt solid #003DA5;
+        border-top: 1pt solid {{ brand_blue }};
         width: 100%;
       }
 
@@ -114,7 +114,7 @@
       position: running(running-header);
       width: 100%;
       padding-bottom: 6pt;
-      border-bottom: 1.5pt solid #003DA5;
+      border-bottom: 1.5pt solid {{ brand_blue }};
       display: table;
       table-layout: fixed;
     }
@@ -145,7 +145,7 @@
     .cover-page {
       page: cover-page;
       page-break-after: always;
-      background-color: #003DA5;
+      background-color: {{ brand_blue }};
       color: #ffffff;
       margin: -0.75in -0.85in;
       padding: 0.75in 0.85in;
@@ -163,7 +163,7 @@
     .cover-accent-bar {
       width: 60pt;
       height: 4pt;
-      background-color: #F5333F;
+      background-color: {{ brand_red }};
       margin-bottom: 22pt;
     }
 
@@ -239,11 +239,11 @@
     .section-heading {
       font-size: 15pt;
       font-weight: bold;
-      color: #003DA5;
+      color: {{ brand_blue }};
       margin-top: 18pt;
       margin-bottom: 10pt;
       padding-bottom: 4pt;
-      border-bottom: 1.5pt solid #003DA5;
+      border-bottom: 1.5pt solid {{ brand_blue }};
       page-break-after: avoid;
     }
 
@@ -273,7 +273,7 @@
        ================================================================ */
     .callout-box {
       background-color: #F5F7FA;
-      border-left: 3pt solid #003DA5;
+      border-left: 3pt solid {{ brand_blue }};
       padding: 10pt 14pt;
       margin: 10pt 0 14pt 0;
       font-size: 9.5pt;
@@ -297,7 +297,7 @@
     }
 
     .conditions-table th {
-      background-color: #003DA5;
+      background-color: {{ brand_blue }};
       color: #ffffff;
       font-size: 9pt;
       font-weight: bold;
@@ -366,7 +366,7 @@
     .photo-item .photo-label {
       font-size: 8pt;
       font-weight: bold;
-      color: #003DA5;
+      color: {{ brand_blue }};
       margin-top: 5pt;
       margin-bottom: 3pt;
     }
@@ -419,7 +419,7 @@
       margin-bottom: 14pt;
       font-size: 10pt;
       font-weight: bold;
-      color: #003DA5;
+      color: {{ brand_blue }};
     }
 
     .coating-description {
@@ -436,7 +436,7 @@
     }
 
     .coat-sequence-table th {
-      background-color: #003DA5;
+      background-color: {{ brand_blue }};
       color: #ffffff;
       font-size: 9pt;
       font-weight: bold;
@@ -777,7 +777,13 @@
           {% for coat in coating_system.coat_sequence %}
             <tr>
               <td class="coat-col">{{ coat.coat }}</td>
-              <td class="product-col">{{ coat.product }}</td>
+              <td class="product-col">
+                {% if coat.pds_url %}
+                  <a href="{{ coat.pds_url }}" style="color: {{ brand_blue }};">{{ coat.product }}</a>
+                {% else %}
+                  {{ coat.product }}
+                {% endif %}
+              </td>
               <td class="reason-col">
                 {% if coat.reason %}{{ coat.reason }}{% else %}<span class="placeholder-text">—</span>{% endif %}
               </td>
