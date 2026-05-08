@@ -13,7 +13,9 @@ Multi-step flow:
 """
 
 import hashlib
+import logging
 import os
+from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -34,8 +36,7 @@ try:
     _init_db()
     _LIBRARY_AVAILABLE = True
 except Exception as _lib_init_err:
-    import logging as _logging
-    _logging.getLogger(__name__).warning(
+    logging.getLogger(__name__).warning(
         "Document library unavailable: %s", _lib_init_err
     )
     _LIBRARY_AVAILABLE = False
@@ -257,6 +258,13 @@ def _init_edit_state(result: dict) -> None:
         result.get("technical_references", [])
     )
 
+    _uploaded = st.session_state.get("photos", [])
+    for _i, _uf in enumerate(_uploaded):
+        st.session_state[f"ed_photo_name_{_i}"] = getattr(_uf, "name", f"Photo {_i + 1}")
+
+    for _i, _pe in enumerate(result.get("photos", [])):
+        st.session_state[f"ed_photo_caption_{_i}"] = _pe.get("caption", "")
+
 
 # ---------------------------------------------------------------------------
 # Build the final content dict from edited session state (for PDF generation)
@@ -274,8 +282,14 @@ def _build_pdf_content() -> dict:
         _entry = dict(_p)
         if _i < len(_photos_encoded) and _photos_encoded[_i]:
             _entry["image_data_uri"] = _photos_encoded[_i]
-        if not _entry.get("filename") and _i < len(_uploaded_ss):
+        _custom_name = st.session_state.get(f"ed_photo_name_{_i}", "").strip()
+        if _custom_name:
+            _entry["filename"] = _custom_name
+        elif not _entry.get("filename") and _i < len(_uploaded_ss):
             _entry["filename"] = getattr(_uploaded_ss[_i], "name", f"Photo {_i + 1}")
+        _custom_caption = st.session_state.get(f"ed_photo_caption_{_i}", "").strip()
+        if _custom_caption:
+            _entry["caption"] = _custom_caption
         _photos.append(_entry)
 
     return {
@@ -420,16 +434,13 @@ with st.sidebar:
             st.divider()
 
             for _report in _results:
-                import os as _os
-                from pathlib import Path as _Path
-
                 _rid = _report["id"]
                 _r_client = _report.get("client_name", "")
                 _r_facility = _report.get("facility_name", "")
                 _r_apm = _report.get("apm_name", "")
                 _r_date = _report.get("date_generated", "")[:10]
                 _r_file_path = _report.get("file_path", "")
-                _abs_path = _Path(__file__).parent / _r_file_path
+                _abs_path = Path(__file__).parent / _r_file_path
 
                 st.markdown(f"**{_r_client}**")
                 st.caption(f"{_r_facility} | {_r_date} | APM: {_r_apm}")
@@ -443,7 +454,7 @@ with st.sidebar:
                         st.download_button(
                             label="Download",
                             data=_pdf_bytes,
-                            file_name=_Path(_r_file_path).name,
+                            file_name=Path(_r_file_path).name,
                             mime="application/pdf",
                             key=f"dl_{_rid}",
                         )
@@ -511,6 +522,15 @@ with st.form("intake_form"):
         help="Upload all photographs taken during the site visit. JPG and PNG accepted.",
     )
 
+    st.markdown("#### Assessment Details")
+    from datetime import date as _date
+    assessment_date = st.date_input(
+        "Assessment Date",
+        value=_date.today(),
+        format="YYYY-MM-DD",
+        help="Date of the site visit. Defaults to today.",
+    )
+
     st.markdown("#### Coating System")
     coating_system = st.text_input(
         label="Coating System Name (optional)",
@@ -562,6 +582,7 @@ if submit_button:
                     apm_name=apm_name.strip(),
                     photos=uploaded_photos,
                     coating_system=coating_system.strip(),
+                    assessment_date=assessment_date.isoformat(),
                     on_step=_update_status,
                 )
                 _gen_status.update(label="Assessment complete", state="complete")
@@ -583,8 +604,7 @@ if submit_button:
             try:
                 _encoded_uris.append(_encode_photo_upload(_uf))
             except Exception as _enc_err:
-                import logging as _log
-                _log.getLogger(__name__).warning("Could not pre-encode photo: %s", _enc_err)
+                logging.getLogger(__name__).warning("Could not pre-encode photo: %s", _enc_err)
                 _encoded_uris.append(None)
         st.session_state["photos_encoded"] = _encoded_uris
 
@@ -730,14 +750,18 @@ if "result" in st.session_state:
         with st.expander(f"3. Photo Log — {len(_photos_data)} photo(s)", expanded=False):
             if _photos_data:
                 for _pi, _entry in enumerate(_photos_data, start=1):
-                    _pname = (
-                        getattr(_uploaded_photos_ss[_pi - 1], "name", "")
-                        if _pi - 1 < len(_uploaded_photos_ss) else ""
+                    st.text_input(
+                        f"Photo {_pi} name (shown in PDF)",
+                        key=f"ed_photo_name_{_pi - 1}",
+                        placeholder=f"Photo {_pi} label",
                     )
-                    st.markdown(f"**Photo {_pi}** — {_pname}")
                     if _pi - 1 < len(_uploaded_photos_ss):
                         st.image(_uploaded_photos_ss[_pi - 1], use_container_width=True)
-                    st.markdown(f"*AI Caption:* {_entry.get('caption', '')}")
+                    st.text_area(
+                        "Caption (shown in PDF)",
+                        key=f"ed_photo_caption_{_pi - 1}",
+                        height=100,
+                    )
                     if _pi < len(_photos_data):
                         st.divider()
             else:
@@ -861,13 +885,12 @@ if "result" in st.session_state:
                 use_container_width=True,
             ):
                 try:
-                    from pathlib import Path as _Path
                     _snapshot = st.session_state["pdf_content_snapshot"]
                     _rel_path = _build_report_filename(
                         _snapshot["facility_name"],
                         _snapshot["client_name"],
                     )
-                    _abs_pdf_path = _Path(__file__).parent / _rel_path
+                    _abs_pdf_path = Path(__file__).parent / _rel_path
                     _abs_pdf_path.parent.mkdir(parents=True, exist_ok=True)
                     with open(_abs_pdf_path, "wb") as _pdf_fh:
                         _pdf_fh.write(st.session_state["pdf_bytes"])
@@ -880,8 +903,7 @@ if "result" in st.session_state:
                     st.session_state["pdf_saved_to_library"] = True
                     st.rerun()
                 except Exception as _lib_save_err:
-                    import logging as _log2
-                    _log2.getLogger(__name__).warning(
+                    logging.getLogger(__name__).warning(
                         "Could not save report to library: %s", _lib_save_err
                     )
                     st.error(f"Could not save to library: {_lib_save_err}")

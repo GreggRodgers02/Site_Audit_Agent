@@ -13,8 +13,10 @@ Returns a content dict for direct consumption by pdf_builder.build_pdf().
 from __future__ import annotations
 
 import base64
-import os
+import json
 import logging
+import os
+import re
 from datetime import date
 from typing import Any
 
@@ -209,7 +211,6 @@ def _lookup_pds_url(client, product_name: str) -> str:
     Search sherwin-williams.com for the product data sheet page URL of a specific product.
     Returns the URL string on success, empty string if not found.
     """
-    import re
     if not product_name.strip():
         return ""
     try:
@@ -291,6 +292,7 @@ def _build_narrative_prompt(
     coating_system: str,
     photo_findings: list[tuple[str, str]],
     web_research: str = "",
+    assessment_date: str = "",
 ) -> str:
     findings_block = (
         "\n\n".join(f"--- {label} ---\n{analysis}" for label, analysis in photo_findings)
@@ -313,7 +315,7 @@ def _build_narrative_prompt(
 **Facility Name:** {facility_name}
 **Client / Owner:** {client_name}
 **APM Name:** {apm_name}
-**Assessment Date:** {date.today().isoformat()}
+**Assessment Date:** {assessment_date or date.today().isoformat()}
 
 ---
 
@@ -400,6 +402,7 @@ def _generate_narrative(
     coating_system: str,
     photo_findings: list[tuple[str, str]],
     web_research: str = "",
+    assessment_date: str = "",
 ) -> str:
     user_prompt = _build_narrative_prompt(
         facility_name=facility_name,
@@ -408,6 +411,7 @@ def _generate_narrative(
         coating_system=coating_system,
         photo_findings=photo_findings,
         web_research=web_research,
+        assessment_date=assessment_date,
     )
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT},
@@ -433,7 +437,6 @@ def _generate_narrative(
 # ---------------------------------------------------------------------------
 
 def _extract_section(narrative: str, heading: str, next_headings: list[str]) -> str:
-    import re
     escaped = re.escape(heading)
     for next_h in next_headings:
         esc_next = re.escape(next_h)
@@ -450,7 +453,6 @@ def _extract_section(narrative: str, heading: str, next_headings: list[str]) -> 
 
 
 def _extract_callouts(text: str) -> list[str]:
-    import re
     return [
         m.group(1).strip()
         for m in re.finditer(r"^CALLOUT:\s*(.+)$", text, re.MULTILINE)
@@ -458,7 +460,6 @@ def _extract_callouts(text: str) -> list[str]:
 
 
 def _strip_markers(text: str) -> str:
-    import re
     return re.sub(
         r"^(CALLOUT|BULLET|CONDITION|NOTE|FAILURE_DRIVERS|SYSTEM_NAME|PERF_NOTES|COAT|REF):.*$",
         "", text, flags=re.MULTILINE,
@@ -479,7 +480,6 @@ def _parse_executive_summary(narrative: str) -> tuple[str, str]:
 
 
 def _parse_existing_conditions(narrative: str) -> tuple[list[dict], str]:
-    import re
     section = _extract_section(
         narrative,
         "Existing Conditions",
@@ -509,7 +509,6 @@ def _parse_existing_conditions(narrative: str) -> tuple[list[dict], str]:
 
 
 def _parse_failure_analysis(narrative: str) -> tuple[str, str]:
-    import re
     section = _extract_section(
         narrative,
         "Observed Failure Analysis",
@@ -540,7 +539,6 @@ def _parse_surface_preparation(narrative: str) -> str:
 
 
 def _parse_coating_system(coating_system_input: str, narrative: str) -> tuple[dict, str]:
-    import re
     section = _extract_section(
         narrative,
         "Proposed Recommended Coating System",
@@ -617,7 +615,6 @@ def _parse_conclusion(narrative: str) -> tuple[str, str]:
 
 
 def _parse_technical_references(narrative: str) -> list[str]:
-    import re
     section = _extract_section(narrative, "Technical Reference Basis", [])
     if not section:
         section = _extract_section(narrative, "Technical Reference", [])
@@ -635,7 +632,6 @@ def _parse_technical_references(narrative: str) -> list[str]:
 
 
 def _parse_standards_from_narrative(narrative: str) -> list[dict]:
-    import re
     standards = []
     seen: set[str] = set()
     patterns = [
@@ -702,9 +698,6 @@ def apply_change_request(change_request: str, current_sections: dict) -> dict:
     AIGenerationError
         On API failure or unparseable response.
     """
-    import json
-    import re as _re
-
     client = _get_client()
 
     sections_text = json.dumps(current_sections, indent=2, ensure_ascii=False)
@@ -748,10 +741,10 @@ Include ONLY keys for fields that actually change. Return valid JSON only — no
         _translate_api_error(exc)
 
     # Strip markdown fences if present
-    raw = _re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=_re.MULTILINE)
-    raw = _re.sub(r"\s*```$", "", raw.strip(), flags=_re.MULTILINE).strip()
+    raw = re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=re.MULTILINE)
+    raw = re.sub(r"\s*```$", "", raw.strip(), flags=re.MULTILINE).strip()
 
-    json_match = _re.search(r"\{.*\}", raw, _re.DOTALL)
+    json_match = re.search(r"\{.*\}", raw, re.DOTALL)
     if not json_match:
         raise AIGenerationError(
             "The AI did not return a valid JSON response for the change request."
@@ -779,6 +772,7 @@ def generate_site_assessment(
     apm_name: str,
     photos: list,
     coating_system: str,
+    assessment_date: str | None = None,
     on_step=None,
 ) -> dict:
     """
@@ -801,6 +795,7 @@ def generate_site_assessment(
             except Exception:
                 pass  # Status callback must never break generation
 
+    _assessment_date = assessment_date or date.today().isoformat()
     client = _get_client()
 
     # Step 1: Per-photo vision analysis (runs first so findings inform web research)
@@ -854,6 +849,7 @@ def generate_site_assessment(
             coating_system=coating_system,
             photo_findings=photo_findings,
             web_research=web_research,
+            assessment_date=_assessment_date,
         )
     except AIGenerationError:
         raise
@@ -893,10 +889,9 @@ def generate_site_assessment(
         "facility_name": facility_name,
         "client_name": client_name,
         "apm_name": apm_name,
-        "assessment_date": date.today().isoformat(),
+        "assessment_date": _assessment_date,
         "executive_summary": executive_summary,
         "exec_summary_callout": exec_callout,
-        "_full_narrative": narrative,
         "existing_conditions": existing_conditions,
         "failure_drivers": failure_drivers,
         "photos": photo_entries,

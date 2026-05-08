@@ -25,6 +25,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import markupsafe
+
 logger = logging.getLogger(__name__)
 
 _ASSETS_DIR = Path(__file__).parent.parent / "assets"
@@ -243,6 +245,13 @@ def _build_template_context(
     }
 
 
+def _register_nl2br(env) -> None:
+    def nl2br(value: str) -> markupsafe.Markup:
+        escaped = markupsafe.escape(value)
+        return markupsafe.Markup(str(escaped).replace("\n", "<br>\n"))
+    env.filters["nl2br"] = nl2br
+
+
 _PREVIEW_CSS_OVERRIDE = """
 <style>
   body { max-width: 900px; margin: 0 auto; padding: 32px 48px; background: #fff; }
@@ -277,14 +286,7 @@ def render_preview_html(content: dict) -> str:
         autoescape=select_autoescape(["html"]),
         keep_trailing_newline=True,
     )
-
-    import markupsafe
-
-    def nl2br(value: str) -> markupsafe.Markup:
-        escaped = markupsafe.escape(value)
-        return markupsafe.Markup(str(escaped).replace("\n", "<br>\n"))
-
-    env.filters["nl2br"] = nl2br
+    _register_nl2br(env)
 
     try:
         template = env.get_template("pdf_template.html")
@@ -336,14 +338,7 @@ def build_pdf(content: dict) -> bytes:
         autoescape=select_autoescape(["html"]),
         keep_trailing_newline=True,
     )
-
-    import markupsafe
-
-    def nl2br(value: str) -> markupsafe.Markup:
-        escaped = markupsafe.escape(value)
-        return markupsafe.Markup(str(escaped).replace("\n", "<br>\n"))
-
-    env.filters["nl2br"] = nl2br
+    _register_nl2br(env)
 
     try:
         template = env.get_template("pdf_template.html")
