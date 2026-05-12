@@ -26,6 +26,19 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+try:
+    from langsmith import traceable
+    from langsmith.wrappers import wrap_openai as _wrap_openai
+    _LANGSMITH_AVAILABLE = True
+except ImportError:
+    _LANGSMITH_AVAILABLE = False
+
+    def traceable(*args, **kwargs):
+        """No-op when langsmith is not installed."""
+        def decorator(fn):
+            return fn
+        return decorator if args and callable(args[0]) else decorator
+
 
 class AIGenerationError(Exception):
     """Raised on any unrecoverable failure during AI-powered report generation."""
@@ -44,7 +57,10 @@ def _get_client():
         raise AIGenerationError(
             "OPENAI_API_KEY is not set. Add it to your .env file and restart."
         )
-    return OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key)
+    if _LANGSMITH_AVAILABLE and os.environ.get("LANGCHAIN_TRACING_V2", "").lower() == "true":
+        client = _wrap_openai(client)
+    return client
 
 
 def _primary_model() -> str:
@@ -153,6 +169,7 @@ _SYSTEM_PROMPT = (
 # Online product research
 # ---------------------------------------------------------------------------
 
+@traceable(name="web_research")
 def _web_research_coating_system(
     client,
     coating_system: str,
@@ -206,6 +223,7 @@ def _web_research_coating_system(
         return ""
 
 
+@traceable(name="pds_url_lookup")
 def _lookup_pds_url(client, product_name: str) -> str:
     """
     Search sherwin-williams.com for the product data sheet page URL of a specific product.
@@ -254,6 +272,7 @@ _PHOTO_ANALYSIS_PROMPT = (
 )
 
 
+@traceable(name="photo_analysis")
 def _analyze_photo(client: Any, uploaded_file) -> str:
     b64 = _encode_image(uploaded_file)
     media_type = _image_media_type(uploaded_file)
@@ -394,6 +413,7 @@ REF: <full citation: document title, issuer, issue date or access date>
 Write in formal, client-facing language. Do not include any sections other than the eight listed above."""
 
 
+@traceable(name="narrative_generation")
 def _generate_narrative(
     client: Any,
     facility_name: str,
@@ -676,6 +696,7 @@ def _parse_standards_from_narrative(narrative: str) -> list[dict]:
 # Public API
 # ---------------------------------------------------------------------------
 
+@traceable(name="change_request")
 def apply_change_request(change_request: str, current_sections: dict) -> dict:
     """
     Apply a natural-language change request to the current report sections.
@@ -766,6 +787,7 @@ Include ONLY keys for fields that actually change. Return valid JSON only — no
     return {k: v for k, v in changes.items() if k in valid_keys and isinstance(v, str)}
 
 
+@traceable(name="site_assessment")
 def generate_site_assessment(
     facility_name: str,
     client_name: str,

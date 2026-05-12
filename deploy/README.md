@@ -1,6 +1,6 @@
 # Site Audit Agent — VPS Deployment Guide
 
-Sherwin-Williams PCG Asset Protection | Hostinger Ubuntu 22.04 LTS
+APM Site Assessment | Hostinger Ubuntu 22.04 LTS
 
 This guide walks an IT administrator through a complete first-time deployment of the Site Audit Agent. Every command is copy-pasteable. No Python knowledge is required.
 
@@ -479,5 +479,5 @@ Also confirm `proxy_buffering off;` is present — buffering breaks WebSocket fr
 
 ---
 
-*Site Audit Agent — Sherwin-Williams PCG Asset Protection*
+*Site Audit Agent — APM Site Assessment*
 *Deploy guide version 1.0 | 2026-05-05*

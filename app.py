@@ -67,7 +67,7 @@ def _get_stored_hash() -> str:
 _stored_hash = _get_stored_hash()
 if _stored_hash and not st.session_state.get("authenticated"):
     st.title("Site Audit Agent")
-    st.markdown("**Sherwin-Williams PCG Asset Protection** — please log in to continue.")
+    st.markdown("**APM Site Assessment** — please log in to continue.")
     st.divider()
     with st.form("login_form"):
         _pw = st.text_input("Password", type="password")
@@ -347,8 +347,7 @@ with st.sidebar:
     # -- Branding controls --
     with st.expander("Branding", expanded=False):
         st.caption(
-            "Customize logos and colors for this session. "
-            "Defaults to Sherwin-Williams brand."
+            "Customize logos and colors for this session."
         )
         st.file_uploader(
             "Logo 1 (running header)",
@@ -488,7 +487,7 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 st.title("Site Audit Agent")
 st.markdown(
-    "**Sherwin-Williams PCG Asset Protection** — "
+    "**APM Site Assessment** — "
     "Generate a professional site assessment report from field photos and coating specifications."
 )
 st.divider()
@@ -534,7 +533,7 @@ with st.form("intake_form"):
     st.markdown("#### Coating System")
     coating_system = st.text_input(
         label="Coating System Name (optional)",
-        placeholder="e.g., Sherwin-Williams Resuflor Guard SL with Resutile AT topcoat",
+        placeholder="e.g., Resuflor Guard SL with Resutile AT topcoat",
         help=(
             "Enter the coating system name or key product names. "
             "The AI will research the product specs online."

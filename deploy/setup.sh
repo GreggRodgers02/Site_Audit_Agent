@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # setup.sh — Site Audit Agent VPS Provisioning Script
-# Sherwin-Williams PCG Asset Protection
+# APM Site Assessment
 # Target OS: Ubuntu 22.04 LTS
 # =============================================================================
 #
@@ -59,7 +59,7 @@ print_header() {
     echo ""
     echo "============================================================"
     echo "  Site Audit Agent — VPS Setup"
-    echo "  Sherwin-Williams PCG Asset Protection"
+    echo "  APM Site Assessment"
     echo "  $(date '+%Y-%m-%d %H:%M:%S')"
     echo "============================================================"
     echo ""

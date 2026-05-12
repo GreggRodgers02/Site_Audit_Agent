@@ -1,6 +1,6 @@
 # =============================================================================
 # systemd Service Unit — Site Audit Agent
-# Sherwin-Williams PCG Asset Protection
+# APM Site Assessment
 # =============================================================================
 #
 # BEFORE USING THIS FILE:
@@ -18,7 +18,7 @@
 # =============================================================================
 
 [Unit]
-Description=Site Audit Agent — Streamlit application for Sherwin-Williams PCG APMs
+Description=Site Audit Agent — Streamlit application for APMs
 After=network.target
 
 [Service]

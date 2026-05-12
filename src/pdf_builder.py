@@ -9,7 +9,7 @@ suitable for st.download_button().
 Public API
 ----------
 build_pdf(content: dict) -> bytes
-    Render a fully branded Sherwin-Williams Site Assessment PDF.
+    Render a fully branded APM Site Assessment PDF.
 
 PDFBuildError
     Raised on any unrecoverable rendering failure.
@@ -299,7 +299,7 @@ def render_preview_html(content: dict) -> str:
 
 def build_pdf(content: dict) -> bytes:
     """
-    Render a branded Sherwin-Williams Site Assessment PDF from the content dict.
+    Render a branded APM Site Assessment PDF from the content dict.
 
     Parameters
     ----------

@@ -22,6 +22,9 @@ The app runs on `http://localhost:8501` by default. Leave `APP_PASSWORD_HASH` un
 | `OPENAI_PRIMARY_MODEL` | Vision + change requests. Default `gpt-4o`. |
 | `OPENAI_FALLBACK_MODEL` | Auto-fallback if primary unavailable. Default `gpt-4o-mini`. |
 | `APP_PASSWORD_HASH` | SHA-256 hex of the login password. Omit to run without auth. |
+| `LANGCHAIN_API_KEY` | LangSmith API key. Omit to disable tracing. |
+| `LANGCHAIN_TRACING_V2` | Set `true` to enable LangSmith tracing. |
+| `LANGCHAIN_PROJECT` | LangSmith project name. Default: `"site-audit-agent"`. |
 
 Generate `APP_PASSWORD_HASH`:
 ```bash
